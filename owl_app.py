@@ -19,11 +19,13 @@ from langchain.llms import OpenAIChat
 from langchain.document_loaders.csv_loader import CSVLoader
 from langchain.chat_models import ChatOpenAI
 
-prompt_template = """You are an AI assistance that helps users answer questions regarding Twilio.
-Use the context below to provide an answer on the topic below.
-If you can't find an answer based on the context then try to give your best answer without context
+prompt_template = """You are an AI assistance that helps users answer questions regarding Twilio based on topics and given particular context.
+Use the context below to provide an answer on the topic below. If the context or topic is not related to Twilio then respond with 'Sorry but this question is not reltated to Twilio' 
+    
     Context: {context}
+    
     Topic: {topic}
+    
     Answer:"""
 
 PROMPT = PromptTemplate(
@@ -56,7 +58,7 @@ chain = LLMChain(llm=llm, prompt=PROMPT)
 # chat_history = []
 
 def generate_text(topic):
-    docs = search_index.similarity_search(topic, k=1)
+    docs = search_index.similarity_search(topic, k=4)
     inputs = [{"context": doc.page_content, "topic": topic} for doc in docs]
     return chain.apply(inputs)[0]['text']
 
