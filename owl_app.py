@@ -4,59 +4,42 @@ from streamlit_chat import message
 import time
 
 
-from langchain.llms import OpenAI
 from langchain.chains.question_answering import load_qa_chain
 from langchain.docstore.document import Document
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores.faiss import FAISS
+from langchain.vectorstores import Pinecone
 from langchain.text_splitter import CharacterTextSplitter
+import pinecone
 import requests
+import os
+from langchain import OpenAI, ConversationChain, LLMChain, PromptTemplate
+from langchain.memory import ConversationBufferWindowMemory
+from langchain.chains import ChatVectorDBChain
+from langchain.llms import OpenAIChat
+from langchain.document_loaders.csv_loader import CSVLoader
 
+pinecone.init(
+    api_key = os.environ.get("PINE_API_KEY"),
+    environment="us-central1-gcp"
+)
 
-def get_wiki_data(title, first_paragraph_only):
-    url = f"https://en.wikipedia.org/w/api.php?format=json&action=query&prop=extracts&explaintext=1&titles={title}"
-    if first_paragraph_only:
-        url += "&exintro=1"
-    data = requests.get(url).json()
-    return Document(
-        page_content=list(data["query"]["pages"].values())[0]["extract"],
-        metadata={"source": f"https://en.wikipedia.org/wiki/{title}"},
-    )
+search_index = Pinecone.from_existing_index(index_name="langchain-demo", embedding=OpenAIEmbeddings())
 
-sources = [
-    get_wiki_data("Unix", False),
-    get_wiki_data("Microsoft_Windows", False),
-    get_wiki_data("Linux", False),
-    get_wiki_data("Seinfeld", False),
-    get_wiki_data("Matchbox_Twenty", False),
-    get_wiki_data("Roman_Empire", False),
-    get_wiki_data("London", False),
-    get_wiki_data("Python_(programming_language)", False),
-    get_wiki_data("Monty_Python", False),
-]
+llm = OpenAIChat(model_name ="gpt-4",verbose=True,temperature=0)
+qa = ChatVectorDBChain.from_llm(llm, search_index)
 
-source_chunks = []
+def add_history(chat_history,query,res,n):
+    chat_history.append((query, res))
+    if len(chat_history) > n:
+        chat_history.pop(0)
+    return chat_history
 
-splitter = CharacterTextSplitter(separator=" ", chunk_size=1024, chunk_overlap=0)
+def get_answer(query,chat_history,n):
+    result = qa({"question": query, "chat_history": chat_history})
+    chat_history=add_history(chat_history,query,result["answer"],n)
+    return result
 
-for source in sources:
-    for chunk in splitter.split_text(source.page_content):
-        source_chunks.append(Document(page_content=chunk, metadata=source.metadata))
-
-search_index = FAISS.from_documents(source_chunks, OpenAIEmbeddings())
-
-chain = load_qa_chain(OpenAI(temperature=0))
-
-def give_answer(question):
-    return chain(
-            {
-                "input_documents": search_index.similarity_search(question, k=4),
-                "question": question,
-            },
-            return_only_outputs=True,
-        )["output_text"]
-
-
+chat_history = []
 
 # From here down is all the StreamLit UI.
 st.set_page_config(page_title="Owl Search", page_icon=":robot:")
@@ -70,14 +53,10 @@ if "generated" not in st.session_state:
 if "past" not in st.session_state:
     st.session_state["past"] = []
 
-def get_text():
-    # input_text = st.text_input("You: ", "Hello, how are you?", key="input")
-    return 
-
 user_input = st.text_input(label="You: ",key="input")
 
 if user_input:
-    output = give_answer(user_input)
+    output = get_answer(user_input,chat_history,5)['answer']
 
     st.session_state.past.append(user_input)
     st.session_state.generated.append(output)
