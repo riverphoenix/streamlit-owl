@@ -4,3 +4,4 @@ streamlit_chat
 langchain
 openai
 pinecone-client
+bs4
