@@ -19,8 +19,8 @@ from langchain.llms import OpenAIChat
 from langchain.document_loaders.csv_loader import CSVLoader
 from langchain.chat_models import ChatOpenAI
 
-prompt_template = """You are an AI assistance that helps users answer questions regarding Twilio based on topics and given particular context.
-Use the context below to provide an answer on the topic below. If the context or topic is not related to Twilio then respond with 'Sorry but this question is not reltated to Twilio' 
+prompt_template = """You are an AI assistance that helps users answer questions regarding Twilio
+Use the context below to provide an answer on the topic. If the topic is not related to Twilio or any of the Twilio products then respond with 'Sorry but this question is not reltated to Twilio' 
     
     Context: {context}
     
@@ -40,7 +40,7 @@ pinecone.init(
 search_index = Pinecone.from_existing_index(index_name="langchain-demo", embedding=OpenAIEmbeddings())
 
 # llm = OpenAIChat(model_name ="gpt-4",verbose=True,temperature=0)
-llm = ChatOpenAI(model_name ="gpt-4",verbose=True,temperature=0.7,max_tokens=2048)
+llm = ChatOpenAI(model_name ="gpt-3.5-turbo",verbose=True,temperature=0.7,max_tokens=2048)
 # qa = ChatVectorDBChain.from_llm(llm, search_index)
 chain = LLMChain(llm=llm, prompt=PROMPT)
 
@@ -58,7 +58,7 @@ chain = LLMChain(llm=llm, prompt=PROMPT)
 # chat_history = []
 
 def generate_text(topic):
-    docs = search_index.similarity_search(topic, k=4)
+    docs = search_index.similarity_search(topic, k=10)
     inputs = [{"context": doc.page_content, "topic": topic} for doc in docs]
     return chain.apply(inputs)[0]['text']
 
